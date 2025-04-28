@@ -4,10 +4,12 @@ struct ContentView: View {
     @State private var username: String = ""
     @State private var password: String = ""
     @State private var token: String? = nil
+    @State private var loggedInUserID: String? = nil // State variable to store the logged-in user's ID
     @State private var loginError: String? = nil
     @State private var fetchError: String? = nil
     @State private var isLoading: Bool = false
     @State private var messages: [[String: Any]] = []
+    @State private var deleteMessageError: String? = nil // State variable for delete errors
 
     var body: some View {
         NavigationView {
@@ -74,6 +76,12 @@ struct ContentView: View {
                     .padding()
             }
 
+            if let error = deleteMessageError {
+                Text(error)
+                    .foregroundColor(.red)
+                    .padding()
+            }
+
             if isLoading {
                 ProgressView()
                     .padding()
@@ -81,7 +89,11 @@ struct ContentView: View {
                 ScrollView {
                     LazyVStack { // Use LazyVStack for better performance with many items
                         ForEach(messages.indices, id: \.self) { index in
-                            MessageRow(message: messages[index])
+                            MessageRow(message: messages[index],
+                                       loggedInUserID: loggedInUserID) { messageID in
+                                // Closure called when "Remove" is tapped
+                                deleteMessage(messageID: messageID)
+                            }
                                 .padding(.horizontal)
                                 .padding(.vertical, 4)
                         }
@@ -100,6 +112,7 @@ struct ContentView: View {
 
         isLoading = true
         loginError = nil
+        loggedInUserID = nil // Reset user ID on new login attempt
 
         URLSession.shared.dataTask(with: url) { data, response, error in
             DispatchQueue.main.async {
@@ -113,6 +126,8 @@ struct ContentView: View {
                             if let token = json["token"] as? String, !token.isEmpty {
                                 self.token = token
                                 self.loginError = nil
+                                // Save the logged-in user's ID
+                                self.loggedInUserID = json["id"] as? String // Assuming 'id' is the key for user ID
                             } else {
                                 self.loginError = "Login failed: Missing token in response."
                             }
@@ -143,6 +158,8 @@ struct ContentView: View {
                 self.password = ""
                 self.messages = []
                 self.fetchError = nil
+                self.loggedInUserID = nil // Clear logged-in user ID on logout
+                self.deleteMessageError = nil
             }
         }.resume()
     }
@@ -190,13 +207,69 @@ struct ContentView: View {
             }
         }.resume()
     }
+
+    func deleteMessage(messageID: String) {
+        guard let token = token, let url = URL(string: "https://conversa-api.ntigskovde.se/conversa.php?token=\(token)") else {
+            self.deleteMessageError = "Invalid URL or token."
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let postData: [String: Any] = [
+            "delete": "1",
+            "id": messageID
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: postData, options: [])
+        } catch {
+            self.deleteMessageError = "Failed to create request body: \(error.localizedDescription)"
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.deleteMessageError = "Network error during deletion: \(error.localizedDescription)"
+                    return
+                }
+
+                if let data = data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let status = json["status"] as? String {
+                    if status == "success" {
+                        // Remove the deleted message from the local messages array
+                        self.messages.removeAll { ($0["id"] as? String) == messageID }
+                        self.deleteMessageError = nil // Clear any previous delete errors
+                    } else {
+                        self.deleteMessageError = json["message"] as? String ?? "Failed to delete message."
+                    }
+                } else {
+                    self.deleteMessageError = "Failed to decode delete response."
+                }
+            }
+        }.resume()
+    }
 }
 
 // A custom View to display each message
 struct MessageRow: View {
     let message: [String: Any]
+    let loggedInUserID: String? // Pass the logged-in user ID
+    let onDelete: (String) -> Void // Closure to call when deleting
+
     @State private var image: UIImage? = nil
     @State private var isLoadingImage: Bool = false
+
+    // Helper to check if the current message is authored by the logged-in user
+    private var isMyMessage: Bool {
+        guard let authorID = message["author"] as? String,
+              let currentUserID = loggedInUserID else {
+            return false
+        }
+        return authorID == currentUserID
+    }
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -214,6 +287,16 @@ struct MessageRow: View {
                     Text("By: \(displayName) @ \(dateString)")
                         .font(.caption)
                         .foregroundColor(.gray)
+                }
+                Spacer() // Push the button to the right
+
+                // Show the remove button only for the logged-in user's messages
+                if isMyMessage, let messageID = message["id"] as? String {
+                    Button("Remove") {
+                        onDelete(messageID)
+                    }
+                    .foregroundColor(.red)
+                    .font(.caption)
                 }
             }
 
@@ -261,13 +344,6 @@ struct MessageRow: View {
         }.resume()
     }
 }
-
-// No longer needed as we're using indices for ForEach and adding a unique ID
-// extension Dictionary where Key == String, Value == Any {
-//     var id: Int? {
-//         self["id"] as? Int
-//     }
-// }
 
 // Custom extension to convert message dictionary to a JSON string representation (still useful for debugging if needed)
 extension Dictionary {
