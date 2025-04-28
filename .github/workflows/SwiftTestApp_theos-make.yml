@@ -1,4 +1,4 @@
-name: Build Theos Project
+name: SwiftTestApp - Theos .ipa
 
 on:
   workflow_dispatch: # Manually triggerable workflow
