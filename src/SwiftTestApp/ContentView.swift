@@ -1,34 +1,14 @@
 import SwiftUI
 
-// Step 1: Define the Message struct to represent the data
-struct Message: Identifiable, Codable {
-    var id: Int
-    var displayName: String
-    var title: String
-    var message: String
-    var image: String
-    var date: String
-    var author: Int
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case displayName = "display_name"
-        case title
-        case message
-        case image
-        case date
-        case author
-    }
-}
-
 struct ContentView: View {
     @State private var username: String = ""
     @State private var password: String = ""
     @State private var token: String? = nil
     @State private var loginError: String? = nil
     @State private var fetchError: String? = nil
+    @State private var rawJson: String? = nil  // Store raw JSON response for debugging purposes
     @State private var isLoading: Bool = false
-    @State private var messages: [Message] = [] // Updated to hold Message structs
+    @State private var messages: [Message] = [] // Changed to hold parsed Message objects
 
     var body: some View {
         NavigationView {
@@ -95,40 +75,55 @@ struct ContentView: View {
                     .padding()
             }
 
+            if let rawJson = rawJson {
+                VStack {
+                    Text("Raw JSON Response:")
+                        .font(.headline)
+                        .padding(.top)
+                    ScrollView {
+                        Text(rawJson)
+                            .font(.system(.body, design: .monospaced))
+                            .padding()
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(10)
+                            .frame(height: 200)
+                    }
+                }
+            }
+
             if isLoading {
                 ProgressView()
                     .padding()
             } else {
                 ScrollView {
-                    // Step 2: Display each message using the Message struct
+                    // Display each message
                     ForEach(messages) { message in
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(spacing: 12) {
                             Text(message.title)
-                                .font(.headline)
-                                .padding(.bottom, 4)
+                                .font(.title2)
+                                .fontWeight(.bold)
 
                             Text(message.message)
                                 .font(.body)
-                                .padding(.bottom, 8)
 
-                            HStack {
-                                Text("By: \(message.displayName) @ \(message.date)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                                Spacer()
-                            }
+                            Text("By: \(message.displayName) @ \(message.date)")
+                                .font(.footnote)
+                                .foregroundColor(.gray)
 
-                            // Show the image if available
-                            if !message.image.isEmpty, let url = URL(string: message.image) {
-                                AsyncImage(url: url) { image in
-                                    image
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(height: 200)
-                                } placeholder: {
-                                    ProgressView()
+                            if !message.image.isEmpty, let imageUrl = URL(string: message.image) {
+                                AsyncImage(url: imageUrl) { phase in
+                                    switch phase {
+                                    case .empty:
+                                        ProgressView()
+                                    case .success(let image):
+                                        image.resizable().scaledToFit().frame(height: 200)
+                                    case .failure:
+                                        Text("Image failed to load")
+                                    @unknown default:
+                                        EmptyView()
+                                    }
                                 }
-                                .cornerRadius(10)
+                                .cornerRadius(8)
                                 .padding(.top, 8)
                             }
                         }
@@ -203,6 +198,7 @@ struct ContentView: View {
 
         isLoading = true
         fetchError = nil
+        rawJson = nil  // Clear previous raw JSON response
 
         URLSession.shared.dataTask(with: url) { data, response, error in
             DispatchQueue.main.async {
@@ -210,14 +206,25 @@ struct ContentView: View {
             }
 
             if let data = data {
-                // Step 3: Decode the JSON into an array of Message objects
-                if let decodedMessages = try? JSONDecoder().decode([Message].self, from: data) {
+                // Try to convert the raw data into a string for debugging purposes
+                let rawJsonString = String(data: data, encoding: .utf8)
+                DispatchQueue.main.async {
+                    self.rawJson = rawJsonString // Save the raw JSON string for debugging
+                }
+
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                     DispatchQueue.main.async {
-                        self.messages = decodedMessages
+                        if let status = json.first?["status"] as? String, status != "success" {
+                            self.fetchError = json.first?["message"] as? String ?? "Failed fetching messages"
+                            self.messages = []
+                        } else {
+                            // Parse JSON into Message structs
+                            self.messages = json.compactMap { Message(dictionary: $0) }
+                        }
                     }
                 } else {
                     DispatchQueue.main.async {
-                        self.fetchError = "Failed to decode messages."
+                        self.fetchError = "Failed to decode messages. Raw JSON: \(rawJsonString ?? "No JSON available")"
                     }
                 }
             } else {
@@ -226,5 +233,36 @@ struct ContentView: View {
                 }
             }
         }.resume()
+    }
+}
+
+// Message struct to represent a message
+struct Message: Identifiable {
+    var id: Int
+    var displayName: String
+    var title: String
+    var message: String
+    var image: String
+    var date: String
+    var author: Int
+
+    // Initialize Message from dictionary
+    init?(dictionary: [String: Any]) {
+        guard let id = dictionary["id"] as? Int,
+              let displayName = dictionary["display_name"] as? String,
+              let title = dictionary["title"] as? String,
+              let message = dictionary["message"] as? String,
+              let image = dictionary["image"] as? String,
+              let date = dictionary["date"] as? String,
+              let author = dictionary["author"] as? Int else {
+            return nil
+        }
+        self.id = id
+        self.displayName = displayName
+        self.title = title
+        self.message = message
+        self.image = image
+        self.date = date
+        self.author = author
     }
 }
