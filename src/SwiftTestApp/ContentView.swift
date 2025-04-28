@@ -79,7 +79,7 @@ struct ContentView: View {
                     .padding()
             } else {
                 ScrollView {
-                    ForEach(messages, id: \.self) { message in
+                    ForEach(messages, id: \.first?["id"]) { message in // Use the `id` from each message
                         VStack {
                             if let jsonString = try? JSONSerialization.data(withJSONObject: message, options: .prettyPrinted),
                                let jsonStringOutput = String(data: jsonString, encoding: .utf8) {
