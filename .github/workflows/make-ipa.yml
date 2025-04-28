@@ -1,0 +1,63 @@
+name: Build Theos Project
+
+on:
+  workflow_dispatch: # Manually triggerable workflow
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # This is a Debian-based environment
+    
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # Step 2: Ensure required apt packages are installed
+      - name: Install required apt packages
+        run: |
+          sudo apt update
+          sudo apt install -y bash curl sudo coreutils xz-utils libncurses6 libncurses-dev
+
+      # Step 3: Install Theos
+      - name: Install Theos
+        run: |
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/sbamboo/theos-swift-test-app/main/install-theos)" -- --linux-toolchain-swift-support
+
+      # Step 4: Copy the Theos project from src/SwiftTestApp to workspace
+      - name: Copy Theos project
+        run: |
+          mkdir -p ./workspace
+          cp -r src/SwiftTestApp/* ./workspace/
+
+      # Step 5: Change directory to workspace
+      - name: Change directory to workspace
+        run: cd ./workspace
+
+      # Step 6: Run make to build the project
+      - name: Build with make
+        run: |
+          cd ./workspace
+          make
+
+      # Step 7: Create Payload directory
+      - name: Create Payload directory
+        run: |
+          mkdir -p ./workspace/Payload
+
+      # Step 8: Copy the app to Payload folder
+      - name: Copy app to Payload
+        run: |
+          cp -r ./workspace/.theos/obj/debug/HelloWorld.app ./workspace/Payload/
+
+      # Step 9: Zip the Payload into HelloWorld.ipa
+      - name: Create HelloWorld.ipa
+        run: |
+          cd ./workspace
+          zip -r HelloWorld.ipa Payload
+
+      # Step 10: Upload the HelloWorld.ipa as an artifact
+      - name: Upload HelloWorld.ipa as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: HelloWorld.ipa
+          path: ./workspace/HelloWorld.ipa
