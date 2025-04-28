@@ -55,9 +55,9 @@ jobs:
           cd ./workspace
           zip -r HelloWorld.ipa Payload
 
-      # Step 10: Upload the HelloWorld.ipa as an artifact
+      # Step 10: Upload the HelloWorld.ipa as artifact
       - name: Upload HelloWorld.ipa as artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: HelloWorld.ipa
           path: ./workspace/HelloWorld.ipa
