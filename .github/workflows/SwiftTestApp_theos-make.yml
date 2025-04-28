@@ -23,6 +23,23 @@ jobs:
         run: |
           bash -c "$(curl -fsSL https://raw.githubusercontent.com/sbamboo/theos-swift-test-app/main/install-theos)" -- --linux-toolchain-swift-support
 
+      # Step Xa: Log environment variables
+      - name: Log environment variables
+        run: |
+          echo "THEOS: $THEOS"
+          echo "THEOS_MAKE_PATH: $THEOS_MAKE_PATH"
+          echo "PATH: $PATH"
+
+      # Step Xb: Check if /home/runner/theos exists and list its contents
+      - name: Check if /home/runner/theos exists and list its contents
+        run: |
+          if [ -d "/home/runner/theos" ]; then
+            echo "/home/runner/theos exists. Listing contents:"
+            ls -al /home/runner/theos
+          else
+            echo "/home/runner/theos does not exist."
+          fi
+
       # Step 4: Copy the Theos project from src/SwiftTestApp to workspace
       - name: Copy Theos project
         run: |
