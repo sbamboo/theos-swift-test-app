@@ -58,17 +58,17 @@ jobs:
       # Step 8: Copy the app to Payload folder
       - name: Copy app to Payload
         run: |
-          cp -r /home/runner/workspace/.theos/obj/debug/HelloWorld.app /home/runner/workspace/Payload/
+          cp -r /home/runner/workspace/.theos/obj/debug/SwiftTestApp.app /home/runner/workspace/Payload/
 
-      # Step 9: Zip the Payload into HelloWorld.ipa
-      - name: Create HelloWorld.ipa
+      # Step 9: Zip the Payload into SwiftTestApp.ipa
+      - name: Create SwiftTestApp.ipa
         run: |
           cd /home/runner/workspace
-          zip -r HelloWorld.ipa Payload
+          zip -r SwiftTestApp.ipa Payload
 
-      # Step 10: Upload the HelloWorld.ipa as artifact
-      - name: Upload HelloWorld.ipa as artifact
+      # Step 10: Upload the SwiftTestApp.ipa as artifact
+      - name: Upload SwiftTestApp.ipa as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HelloWorld.ipa
-          path: /home/runner/workspace/HelloWorld.ipa
+          name: SwiftTestApp.ipa
+          path: /home/runner/workspace/SwiftTestApp.ipa
