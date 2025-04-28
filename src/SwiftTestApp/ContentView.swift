@@ -79,7 +79,8 @@ struct ContentView: View {
                     .padding()
             } else {
                 ScrollView {
-                    ForEach(messages, id: \.first?["id"]) { message in // Use the `id` from each message
+                    // Use the JSON string representation of each message as the id
+                    ForEach(messages, id: \.jsonString) { message in
                         VStack {
                             if let jsonString = try? JSONSerialization.data(withJSONObject: message, options: .prettyPrinted),
                                let jsonStringOutput = String(data: jsonString, encoding: .utf8) {
@@ -186,5 +187,17 @@ struct ContentView: View {
                 }
             }
         }.resume()
+    }
+}
+
+// Custom extension to convert message dictionary to a JSON string representation
+extension Dictionary {
+    var jsonString: String {
+        if let jsonData = try? JSONSerialization.data(withJSONObject: self, options: .prettyPrinted),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            return jsonString
+        } else {
+            return ""
+        }
     }
 }
