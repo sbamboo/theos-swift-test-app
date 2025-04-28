@@ -1,0 +1,9 @@
+Package: com.sbamboo.swifttestapp
+Name: SwiftTestApp
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: An awesome SwiftUI application!
+Maintainer: simon
+Author: simon
+Section: Utilities
+Depends: firmware (>= 14.0)
