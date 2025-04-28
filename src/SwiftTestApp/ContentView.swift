@@ -11,6 +11,12 @@ struct ContentView: View {
     @State private var messages: [[String: Any]] = []
     @State private var deleteMessageError: String? = nil // State variable for delete errors
 
+    // New state variables for the input fields
+    @State private var newMessageTitle: String = ""
+    @State private var newMessageText: String = ""
+    @State private var newMessageImageUrl: String = ""
+    @State private var sendMessageError: String? = nil // State for new message errors
+
     var body: some View {
         NavigationView {
             if token == nil {
@@ -73,13 +79,13 @@ struct ContentView: View {
             if let error = fetchError {
                 Text(error)
                     .foregroundColor(.red)
-                    .padding()
+                    .padding(.horizontal) // Add horizontal padding for better layout
             }
 
             if let error = deleteMessageError {
                 Text(error)
                     .foregroundColor(.red)
-                    .padding()
+                    .padding(.horizontal) // Add horizontal padding
             }
 
             if isLoading {
@@ -100,6 +106,38 @@ struct ContentView: View {
                     }
                 }
             }
+
+            // New Post Section
+            VStack(spacing: 8) {
+                if let error = sendMessageError {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .padding(.horizontal)
+                }
+
+                TextField("Title", text: $newMessageTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal)
+
+                TextField("Message", text: $newMessageText)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal)
+
+                TextField("Optional: Image URL", text: $newMessageImageUrl)
+                    .textFieldStyle(.roundedBorder)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .padding(.horizontal)
+
+                Button("Send Post") {
+                    sendMessage()
+                }
+                .padding()
+                .background(Color.green)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            .padding(.bottom) // Add some space at the bottom
         }
         .navigationTitle("Conversa")
         .onAppear {
@@ -173,6 +211,11 @@ struct ContentView: View {
                 self.fetchError = nil
                 self.loggedInUserID = nil // Clear logged-in user ID on logout
                 self.deleteMessageError = nil
+                // Clear new message input fields and error
+                self.newMessageTitle = ""
+                self.newMessageText = ""
+                self.newMessageImageUrl = ""
+                self.sendMessageError = nil
             }
         }.resume()
     }
@@ -264,6 +307,82 @@ struct ContentView: View {
             }
         }.resume()
     }
+
+    func sendMessage() {
+        guard let token = token, let authorID = loggedInUserID else {
+            self.sendMessageError = "Not logged in."
+            return
+        }
+
+        guard let url = URL(string: "https://conversa-api.ntigskovde.se/conversa.php?token=\(token)") else {
+            self.sendMessageError = "Invalid URL."
+            return
+        }
+
+        // Basic validation
+        guard !newMessageTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !newMessageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            self.sendMessageError = "Title and Message cannot be empty."
+            return
+        }
+
+        isLoading = true // Indicate that sending is in progress
+        sendMessageError = nil // Clear previous errors
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        var messageData: [String: Any] = [
+            "author": authorID,
+            "title": newMessageTitle,
+            "message": newMessageText
+        ]
+
+        if !newMessageImageUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            messageData["image"] = newMessageImageUrl
+        }
+
+        let postData: [String: Any] = [
+            "add": "1",
+            "data": messageData
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: postData, options: [])
+        } catch {
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.sendMessageError = "Failed to create request body: \(error.localizedDescription)"
+            }
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                self.isLoading = false // Sending is complete (success or failure)
+                if let error = error {
+                    self.sendMessageError = "Network error sending message: \(error.localizedDescription)"
+                    return
+                }
+
+                if let data = data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let status = json["status"] as? String {
+                    if status == "success" {
+                        // Message sent successfully, clear the input fields and refresh messages
+                        self.newMessageTitle = ""
+                        self.newMessageText = ""
+                        self.newMessageImageUrl = ""
+                        self.sendMessageError = nil // Clear any success messages (though none are shown currently)
+                        self.fetchMessages() // Refresh the message list
+                    } else {
+                        self.sendMessageError = json["message"] as? String ?? "Failed to send message."
+                    }
+                } else {
+                    self.sendMessageError = "Failed to decode send message response."
+                }
+            }
+        }.resume()
+    }
 }
 
 struct MessageRow: View {
@@ -312,10 +431,10 @@ struct MessageRow: View {
                 }
             }
 
-            // Debugging Text
-            Text("authorID: \((message["author"] as? String) ?? "N/A"); currentUserID: \(loggedInUserID ?? "N/A"); matches: \(isMyMessage ? "True" : "False")")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            // Debugging Text (Optional: You might want to remove this in production)
+//            Text("authorID: \((message["author"] as? String) ?? "N/A"); currentUserID: \(loggedInUserID ?? "N/A"); matches: \(isMyMessage ? "True" : "False")")
+//                .font(.caption2)
+//                .foregroundColor(.secondary)
 
 
             if let imageUrlString = message["image"] as? String, !imageUrlString.isEmpty, let imageUrl = URL(string: imageUrlString) {
