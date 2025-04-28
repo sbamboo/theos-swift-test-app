@@ -81,6 +81,7 @@ struct ContentView: View {
                 ScrollView {
                     // Use the message ID as the id
                     ForEach(messages, id: \.id) { message in
+                        // Create a StateObject for each message
                         MessageRow(message: message)
                             .padding(.horizontal)
                             .padding(.vertical, 4)
@@ -183,36 +184,69 @@ struct ContentView: View {
     }
 }
 
+// ViewModel for a single message to manage its state (like image loading)
+class MessageViewModel: ObservableObject {
+    @Published var image: UIImage? = nil
+    @Published var isLoadingImage: Bool = false
+    let messageData: [String: Any]
+
+    init(messageData: [String: Any]) {
+        self.messageData = messageData
+        loadImage()
+    }
+
+    private func loadImage() {
+        guard let imageUrlString = messageData["image"] as? String, !imageUrlString.isEmpty, let imageUrl = URL(string: imageUrlString) else { return }
+
+        isLoadingImage = true
+
+        URLSession.shared.dataTask(with: imageUrl) { data, response, error in
+            DispatchQueue.main.async {
+                self.isLoadingImage = false
+                if let data = data, let uiImage = UIImage(data: data) {
+                    self.image = uiImage
+                } else {
+                    // Handle image loading error or no image
+                    print("Failed to load image for URL: \(imageUrlString)")
+                }
+            }
+        }.resume()
+    }
+}
+
 // A custom View to display each message
 struct MessageRow: View {
-    let message: [String: Any]
-    @State private var image: UIImage? = nil
-    @State private var isLoadingImage: Bool = false
+    @StateObject var viewModel: MessageViewModel // Use StateObject for unique state per row
+
+    init(message: [String: Any]) {
+        // Initialize the ViewModel with the message data
+        _viewModel = StateObject(wrappedValue: MessageViewModel(messageData: message))
+    }
 
     var body: some View {
         VStack(alignment: .leading) {
-            if let title = message["title"] as? String {
+            if let title = viewModel.messageData["title"] as? String {
                 Text(title)
                     .font(.headline)
             }
-            if let messageText = message["message"] as? String {
+            if let messageText = viewModel.messageData["message"] as? String {
                 Text(messageText)
                     .font(.body)
             }
             HStack {
-                if let displayName = message["display_name"] as? String,
-                   let dateString = message["date"] as? String {
+                if let displayName = viewModel.messageData["display_name"] as? String,
+                   let dateString = viewModel.messageData["date"] as? String {
                     Text("By: \(displayName) @ \(dateString)")
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
             }
 
-            if let imageUrlString = message["image"] as? String, !imageUrlString.isEmpty, let imageUrl = URL(string: imageUrlString) {
-                if isLoadingImage {
+            if let imageUrlString = viewModel.messageData["image"] as? String, !imageUrlString.isEmpty {
+                if viewModel.isLoadingImage {
                     ProgressView()
                         .frame(width: 100, height: 100) // Placeholder size
-                } else if let uiImage = image {
+                } else if let uiImage = viewModel.image {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
@@ -230,24 +264,7 @@ struct MessageRow: View {
         .padding()
         .background(Color(.secondarySystemBackground))
         .cornerRadius(10)
-        .onAppear {
-            loadImage()
-        }
-    }
-
-    private func loadImage() {
-        guard let imageUrlString = message["image"] as? String, !imageUrlString.isEmpty, let imageUrl = URL(string: imageUrlString) else { return }
-
-        isLoadingImage = true
-
-        URLSession.shared.dataTask(with: imageUrl) { data, response, error in
-            DispatchQueue.main.async {
-                isLoadingImage = false
-                if let data = data, let uiImage = UIImage(data: data) {
-                    self.image = uiImage
-                }
-            }
-        }.resume()
+        // Removed .onAppear here as loading is handled in the ViewModel init
     }
 }
 
@@ -270,4 +287,3 @@ extension Dictionary {
         }
     }
 }
-
