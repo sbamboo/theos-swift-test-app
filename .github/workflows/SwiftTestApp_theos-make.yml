@@ -75,9 +75,9 @@ jobs:
 
       # Step 11: Delete existing release if it exists
       - name: Delete existing release
-        uses: dev-drprasad/delete-release-action@v1.1
+        uses: liudonghua123/delete-release-action@v1
         with:
-          tag_name: SwiftTestApp_auto-latest
+          release_name: SwiftTestApp_auto-latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
