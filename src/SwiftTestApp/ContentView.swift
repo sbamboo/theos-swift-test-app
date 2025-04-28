@@ -6,9 +6,8 @@ struct ContentView: View {
     @State private var token: String? = nil
     @State private var loginError: String? = nil
     @State private var fetchError: String? = nil
-    @State private var rawJson: String? = nil  // Store raw JSON response for debugging purposes
     @State private var isLoading: Bool = false
-    @State private var messages: [Message] = [] // Changed to hold parsed Message objects
+    @State private var messages: [[String: Any]] = [] // Changed to hold the parsed message array
 
     var body: some View {
         NavigationView {
@@ -75,62 +74,25 @@ struct ContentView: View {
                     .padding()
             }
 
-            if let rawJson = rawJson {
-                VStack {
-                    Text("Raw JSON Response:")
-                        .font(.headline)
-                        .padding(.top)
-                    ScrollView {
-                        Text(rawJson)
-                            .font(.system(.body, design: .monospaced))
-                            .padding()
-                            .background(Color(.secondarySystemBackground))
-                            .cornerRadius(10)
-                            .frame(height: 200)
-                    }
-                }
-            }
-
             if isLoading {
                 ProgressView()
                     .padding()
             } else {
                 ScrollView {
-                    // Display each message
-                    ForEach(messages) { message in
-                        VStack(spacing: 12) {
-                            Text(message.title)
-                                .font(.title2)
-                                .fontWeight(.bold)
-
-                            Text(message.message)
-                                .font(.body)
-
-                            Text("By: \(message.displayName) @ \(message.date)")
-                                .font(.footnote)
-                                .foregroundColor(.gray)
-
-                            if !message.image.isEmpty, let imageUrl = URL(string: message.image) {
-                                AsyncImage(url: imageUrl) { phase in
-                                    switch phase {
-                                    case .empty:
-                                        ProgressView()
-                                    case .success(let image):
-                                        image.resizable().scaledToFit().frame(height: 200)
-                                    case .failure:
-                                        Text("Image failed to load")
-                                    @unknown default:
-                                        EmptyView()
-                                    }
-                                }
-                                .cornerRadius(8)
-                                .padding(.top, 8)
+                    // Use the JSON string representation of each message as the id
+                    ForEach(messages, id: \.jsonString) { message in
+                        VStack {
+                            if let jsonString = try? JSONSerialization.data(withJSONObject: message, options: .prettyPrinted),
+                               let jsonStringOutput = String(data: jsonString, encoding: .utf8) {
+                                TextEditor(text: .constant(jsonStringOutput))
+                                    .padding()
+                                    .frame(height: 200)
+                                    .background(Color(.secondarySystemBackground))
+                                    .cornerRadius(10)
+                                    .padding()
+                                    .font(.system(.body, design: .monospaced))
                             }
                         }
-                        .padding()
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
                     }
                 }
             }
@@ -198,7 +160,6 @@ struct ContentView: View {
 
         isLoading = true
         fetchError = nil
-        rawJson = nil  // Clear previous raw JSON response
 
         URLSession.shared.dataTask(with: url) { data, response, error in
             DispatchQueue.main.async {
@@ -206,25 +167,18 @@ struct ContentView: View {
             }
 
             if let data = data {
-                // Try to convert the raw data into a string for debugging purposes
-                let rawJsonString = String(data: data, encoding: .utf8)
-                DispatchQueue.main.async {
-                    self.rawJson = rawJsonString // Save the raw JSON string for debugging
-                }
-
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {  // Expecting an array of messages
                     DispatchQueue.main.async {
                         if let status = json.first?["status"] as? String, status != "success" {
                             self.fetchError = json.first?["message"] as? String ?? "Failed fetching messages"
                             self.messages = []
                         } else {
-                            // Parse JSON into Message structs
-                            self.messages = json.compactMap { Message(dictionary: $0) }
+                            self.messages = json // Store the array of messages
                         }
                     }
                 } else {
                     DispatchQueue.main.async {
-                        self.fetchError = "Failed to decode messages. Raw JSON: \(rawJsonString ?? "No JSON available")"
+                        self.fetchError = "Failed to decode messages."
                     }
                 }
             } else {
@@ -236,33 +190,14 @@ struct ContentView: View {
     }
 }
 
-// Message struct to represent a message
-struct Message: Identifiable {
-    var id: Int
-    var displayName: String
-    var title: String
-    var message: String
-    var image: String
-    var date: String
-    var author: Int
-
-    // Initialize Message from dictionary
-    init?(dictionary: [String: Any]) {
-        guard let id = dictionary["id"] as? Int,
-              let displayName = dictionary["display_name"] as? String,
-              let title = dictionary["title"] as? String,
-              let message = dictionary["message"] as? String,
-              let image = dictionary["image"] as? String,
-              let date = dictionary["date"] as? String,
-              let author = dictionary["author"] as? Int else {
-            return nil
+// Custom extension to convert message dictionary to a JSON string representation
+extension Dictionary {
+    var jsonString: String {
+        if let jsonData = try? JSONSerialization.data(withJSONObject: self, options: .prettyPrinted),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            return jsonString
+        } else {
+            return ""
         }
-        self.id = id
-        self.displayName = displayName
-        self.title = title
-        self.message = message
-        self.image = image
-        self.date = date
-        self.author = author
     }
 }
