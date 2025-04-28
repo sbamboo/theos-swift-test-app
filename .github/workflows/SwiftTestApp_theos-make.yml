@@ -72,3 +72,24 @@ jobs:
         with:
           name: SwiftTestApp.ipa
           path: /home/runner/workspace/SwiftTestApp.ipa
+
+      # Step 11: Delete existing release if it exists
+      - name: Delete existing release
+        uses: dev-drprasad/delete-release-action@v1.1
+        with:
+          tag_name: SwiftTestApp_auto-latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Step 12: Create a new release
+      - name: Create a new release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: SwiftTestApp_auto-latest
+          name: SwiftTestApp_auto-latest
+          body: "Automated release of the latest SwiftTestApp build."
+          draft: false
+          prerelease: false
+          files: /home/runner/workspace/SwiftTestApp.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
