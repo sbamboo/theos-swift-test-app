@@ -79,20 +79,11 @@ struct ContentView: View {
                     .padding()
             } else {
                 ScrollView {
-                    // Use the JSON string representation of each message as the id
-                    ForEach(messages, id: \.jsonString) { message in
-                        VStack {
-                            if let jsonString = try? JSONSerialization.data(withJSONObject: message, options: .prettyPrinted),
-                               let jsonStringOutput = String(data: jsonString, encoding: .utf8) {
-                                TextEditor(text: .constant(jsonStringOutput))
-                                    .padding()
-                                    .frame(height: 200)
-                                    .background(Color(.secondarySystemBackground))
-                                    .cornerRadius(10)
-                                    .padding()
-                                    .font(.system(.body, design: .monospaced))
-                            }
-                        }
+                    // Use the message ID as the id
+                    ForEach(messages, id: \.id) { message in
+                        MessageRow(message: message)
+                            .padding(.horizontal)
+                            .padding(.vertical, 4)
                     }
                 }
             }
@@ -105,7 +96,7 @@ struct ContentView: View {
 
     func login() {
         guard let url = URL(string: "https://conversa-api.ntigskovde.se/conversa.php?validate&username=\(username)&password=\(password)") else { return }
-        
+
         isLoading = true
         loginError = nil
 
@@ -169,8 +160,10 @@ struct ContentView: View {
             if let data = data {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {  // Expecting an array of messages
                     DispatchQueue.main.async {
-                        if let status = json.first?["status"] as? String, status != "success" {
-                            self.fetchError = json.first?["message"] as? String ?? "Failed fetching messages"
+                        // Check for a status in the first element if the array is not empty
+                        if let firstMessage = json.first,
+                           let status = firstMessage["status"] as? String, status != "success" {
+                            self.fetchError = firstMessage["message"] as? String ?? "Failed fetching messages"
                             self.messages = []
                         } else {
                             self.messages = json // Store the array of messages
@@ -190,7 +183,83 @@ struct ContentView: View {
     }
 }
 
-// Custom extension to convert message dictionary to a JSON string representation
+// A custom View to display each message
+struct MessageRow: View {
+    let message: [String: Any]
+    @State private var image: UIImage? = nil
+    @State private var isLoadingImage: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            if let title = message["title"] as? String {
+                Text(title)
+                    .font(.headline)
+            }
+            if let messageText = message["message"] as? String {
+                Text(messageText)
+                    .font(.body)
+            }
+            HStack {
+                if let displayName = message["display_name"] as? String,
+                   let dateString = message["date"] as? String {
+                    Text("By: \(displayName) @ \(dateString)")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+
+            if let imageUrlString = message["image"] as? String, !imageUrlString.isEmpty, let imageUrl = URL(string: imageUrlString) {
+                if isLoadingImage {
+                    ProgressView()
+                        .frame(width: 100, height: 100) // Placeholder size
+                } else if let uiImage = image {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                        .cornerRadius(8)
+                } else {
+                    // Optional: Display a placeholder if image loading fails
+                    Image(systemName: "photo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 100, height: 100)
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(10)
+        .onAppear {
+            loadImage()
+        }
+    }
+
+    private func loadImage() {
+        guard let imageUrlString = message["image"] as? String, !imageUrlString.isEmpty, let imageUrl = URL(string: imageUrlString) else { return }
+
+        isLoadingImage = true
+
+        URLSession.shared.dataTask(with: imageUrl) { data, response, error in
+            DispatchQueue.main.async {
+                isLoadingImage = false
+                if let data = data, let uiImage = UIImage(data: data) {
+                    self.image = uiImage
+                }
+            }
+        }.resume()
+    }
+}
+
+
+// Custom extension to get the "id" for ForEach
+extension Dictionary where Key == String, Value == Any {
+    var id: Int? {
+        self["id"] as? Int
+    }
+}
+
+// Custom extension to convert message dictionary to a JSON string representation (still useful for debugging if needed)
 extension Dictionary {
     var jsonString: String {
         if let jsonData = try? JSONSerialization.data(withJSONObject: self, options: .prettyPrinted),
@@ -201,3 +270,4 @@ extension Dictionary {
         }
     }
 }
+
