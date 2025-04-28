@@ -1,5 +1,5 @@
 # Swift Test App - Built with Theos
 
-[TrollstoreInstall](trollstore://install?url=https://github.com/sbamboo/theos-swift-test-app/releases/latest/download/SwiftTestApp.ipa)
+<a href="trollstore://install?url=https://github.com/sbamboo/theos-swift-test-app/releases/latest/download/SwiftTestApp.ipa">TrollstoreInstall</a>
 
 [.ipa](https://github.com/sbamboo/theos-swift-test-app/releases/latest/download/SwiftTestApp.ipa)
