@@ -12,58 +12,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      # Step 2: Ensure required apt packages are installed
-      - name: Install required apt packages
-        run: |
-          sudo apt update
-          sudo apt install -y bash curl sudo coreutils xz-utils libncurses6 libncurses-dev
-
-      # Step 3: Install Theos
-      - name: Install Theos
-        run: |
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/sbamboo/theos-swift-test-app/main/install-theos)" -- --linux-toolchain-swift-support
-
-      # Step 4: Set up Theos environment variables for /home/runner/theos
-      - name: Set Theos environment variables
-        run: |
-          echo "Setting up Theos environment variables"
-          export THEOS=/home/runner/theos
-          export THEOS_MAKE_PATH="$THEOS/makefiles"
-          export PATH="$THEOS/bin:$PATH"
-
-      # Step 5: Copy the Theos project from src/SwiftTestApp to workspace
+      # Step 2: Copy the Theos project from src/SwiftTestApp to workspace
       - name: Copy Theos project
         run: |
           mkdir -p ./workspace
           cp -r src/SwiftTestApp/* ./workspace/
 
-      # Step 6: Change directory to workspace
-      - name: Change directory to workspace
-        run: cd ./workspace
-
-      # Step 7: Run make to build the project
-      - name: Build with make
+      # Step 3: Run make to build the project
+      - name: Install Theos and build with make
         run: |
+          sudo apt update
+          sudo apt install -y bash curl sudo coreutils xz-utils libncurses6 libncurses-dev
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/sbamboo/theos-swift-test-app/main/install-theos)" -- --linux-toolchain-swift-support
           cd ./workspace
+          echo "Setting up Theos environment variables"
+          export THEOS=/opt/theos
+          export THEOS_MAKE_PATH="$THEOS/makefiles"
+          export PATH="$THEOS/bin:$PATH"
           make
 
-      # Step 8: Create Payload directory
+      # Step 4: Create Payload directory
       - name: Create Payload directory
         run: |
           mkdir -p ./workspace/Payload
 
-      # Step 9: Copy the app to Payload folder
+      # Step 5: Copy the app to Payload folder
       - name: Copy app to Payload
         run: |
           cp -r ./workspace/.theos/obj/debug/HelloWorld.app ./workspace/Payload/
 
-      # Step 10: Zip the Payload into HelloWorld.ipa
+      # Step 6: Zip the Payload into HelloWorld.ipa
       - name: Create HelloWorld.ipa
         run: |
           cd ./workspace
           zip -r HelloWorld.ipa Payload
 
-      # Step 11: Upload the HelloWorld.ipa as artifact
+      # Step 7: Upload the HelloWorld.ipa as artifact
       - name: Upload HelloWorld.ipa as artifact
         uses: actions/upload-artifact@v4
         with:
