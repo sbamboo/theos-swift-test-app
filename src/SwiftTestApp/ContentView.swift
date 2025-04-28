@@ -124,10 +124,23 @@ struct ContentView: View {
                     DispatchQueue.main.async {
                         if let status = json["status"] as? String, status == "success" {
                             if let token = json["token"] as? String, !token.isEmpty {
+                                // Attempt to extract and set the logged-in user's ID
+                                if let userID = json["id"] as? String {
+                                    self.loggedInUserID = userID
+                                } else if let userID = json["id"] as? Int {
+                                    self.loggedInUserID = String(userID)
+                                } else {
+                                    // If ID is missing or not a String/Int, treat as login failure
+                                    self.loginError = "Login failed: User ID missing or incorrect type in response."
+                                    self.token = nil // Invalidate the token if ID is missing
+                                    self.loggedInUserID = nil // Ensure loggedInUserID is nil
+                                    return // Stop processing here as login failed
+                                }
+
+                                // If we successfully got the token and user ID
                                 self.token = token
                                 self.loginError = nil
-                                // Save the logged-in user's ID
-                                self.loggedInUserID = json["id"] as? String // Assuming 'id' is the key for user ID
+
                             } else {
                                 self.loginError = "Login failed: Missing token in response."
                             }
