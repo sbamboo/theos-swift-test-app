@@ -7,7 +7,7 @@ struct ContentView: View {
     @State private var loginError: String? = nil
     @State private var fetchError: String? = nil
     @State private var isLoading: Bool = false
-    @State private var rawMessages: String = ""
+    @State private var messages: [[String: Any]] = [] // Changed to hold the parsed message array
 
     var body: some View {
         NavigationView {
@@ -79,13 +79,20 @@ struct ContentView: View {
                     .padding()
             } else {
                 ScrollView {
-                    Text(rawMessages)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(10)
-                        .padding()
-                        .font(.system(.body, design: .monospaced))
+                    ForEach(messages, id: \.self) { message in
+                        VStack {
+                            if let jsonString = try? JSONSerialization.data(withJSONObject: message, options: .prettyPrinted),
+                               let jsonStringOutput = String(data: jsonString, encoding: .utf8) {
+                                TextEditor(text: .constant(jsonStringOutput))
+                                    .padding()
+                                    .frame(height: 200)
+                                    .background(Color(.secondarySystemBackground))
+                                    .cornerRadius(10)
+                                    .padding()
+                                    .font(.system(.body, design: .monospaced))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -141,7 +148,7 @@ struct ContentView: View {
                 self.token = nil
                 self.username = ""
                 self.password = ""
-                self.rawMessages = ""
+                self.messages = []
                 self.fetchError = nil
             }
         }.resume()
@@ -159,22 +166,18 @@ struct ContentView: View {
             }
 
             if let data = data {
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {  // Expecting an array of messages
                     DispatchQueue.main.async {
-                        if let status = json["status"] as? String, status != "success" {
-                            self.fetchError = json["message"] as? String ?? "Failed fetching messages"
-                            self.rawMessages = ""
+                        if let status = json.first?["status"] as? String, status != "success" {
+                            self.fetchError = json.first?["message"] as? String ?? "Failed fetching messages"
+                            self.messages = []
                         } else {
-                            if let rawString = String(data: data, encoding: .utf8) {
-                                self.rawMessages = rawString
-                            } else {
-                                self.rawMessages = "Failed to decode raw JSON"
-                            }
+                            self.messages = json // Store the array of messages
                         }
                     }
-                } else if let rawString = String(data: data, encoding: .utf8) {
+                } else {
                     DispatchQueue.main.async {
-                        self.rawMessages = rawString
+                        self.fetchError = "Failed to decode messages."
                     }
                 }
             } else {
