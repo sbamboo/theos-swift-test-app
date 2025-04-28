@@ -253,7 +253,6 @@ struct ContentView: View {
     }
 }
 
-// A custom View to display each message
 struct MessageRow: View {
     let message: [String: Any]
     let loggedInUserID: String? // Pass the logged-in user ID
@@ -299,6 +298,12 @@ struct MessageRow: View {
                     .font(.caption)
                 }
             }
+
+            // Debugging Text
+            Text("authorID: \((message["author"] as? String) ?? "N/A"); currentUserID: \(loggedInUserID ?? "N/A"); matches: \(isMyMessage ? "True" : "False")")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+
 
             if let imageUrlString = message["image"] as? String, !imageUrlString.isEmpty, let imageUrl = URL(string: imageUrlString) {
                 if isLoadingImage {
