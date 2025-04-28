@@ -1,5 +1,26 @@
 import SwiftUI
 
+// Step 1: Define the Message struct to represent the data
+struct Message: Identifiable, Codable {
+    var id: Int
+    var displayName: String
+    var title: String
+    var message: String
+    var image: String
+    var date: String
+    var author: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case title
+        case message
+        case image
+        case date
+        case author
+    }
+}
+
 struct ContentView: View {
     @State private var username: String = ""
     @State private var password: String = ""
@@ -7,7 +28,7 @@ struct ContentView: View {
     @State private var loginError: String? = nil
     @State private var fetchError: String? = nil
     @State private var isLoading: Bool = false
-    @State private var messages: [[String: Any]] = [] // Changed to hold the parsed message array
+    @State private var messages: [Message] = [] // Updated to hold Message structs
 
     var body: some View {
         NavigationView {
@@ -79,20 +100,42 @@ struct ContentView: View {
                     .padding()
             } else {
                 ScrollView {
-                    // Use the JSON string representation of each message as the id
-                    ForEach(messages, id: \.jsonString) { message in
-                        VStack {
-                            if let jsonString = try? JSONSerialization.data(withJSONObject: message, options: .prettyPrinted),
-                               let jsonStringOutput = String(data: jsonString, encoding: .utf8) {
-                                TextEditor(text: .constant(jsonStringOutput))
-                                    .padding()
-                                    .frame(height: 200)
-                                    .background(Color(.secondarySystemBackground))
-                                    .cornerRadius(10)
-                                    .padding()
-                                    .font(.system(.body, design: .monospaced))
+                    // Step 2: Display each message using the Message struct
+                    ForEach(messages) { message in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(message.title)
+                                .font(.headline)
+                                .padding(.bottom, 4)
+
+                            Text(message.message)
+                                .font(.body)
+                                .padding(.bottom, 8)
+
+                            HStack {
+                                Text("By: \(message.displayName) @ \(message.date)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                Spacer()
+                            }
+
+                            // Show the image if available
+                            if !message.image.isEmpty, let url = URL(string: message.image) {
+                                AsyncImage(url: url) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(height: 200)
+                                } placeholder: {
+                                    ProgressView()
+                                }
+                                .cornerRadius(10)
+                                .padding(.top, 8)
                             }
                         }
+                        .padding()
+                        .background(Color(.secondarySystemBackground))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
                     }
                 }
             }
@@ -167,14 +210,10 @@ struct ContentView: View {
             }
 
             if let data = data {
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {  // Expecting an array of messages
+                // Step 3: Decode the JSON into an array of Message objects
+                if let decodedMessages = try? JSONDecoder().decode([Message].self, from: data) {
                     DispatchQueue.main.async {
-                        if let status = json.first?["status"] as? String, status != "success" {
-                            self.fetchError = json.first?["message"] as? String ?? "Failed fetching messages"
-                            self.messages = []
-                        } else {
-                            self.messages = json // Store the array of messages
-                        }
+                        self.messages = decodedMessages
                     }
                 } else {
                     DispatchQueue.main.async {
@@ -187,17 +226,5 @@ struct ContentView: View {
                 }
             }
         }.resume()
-    }
-}
-
-// Custom extension to convert message dictionary to a JSON string representation
-extension Dictionary {
-    var jsonString: String {
-        if let jsonData = try? JSONSerialization.data(withJSONObject: self, options: .prettyPrinted),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            return jsonString
-        } else {
-            return ""
-        }
     }
 }
